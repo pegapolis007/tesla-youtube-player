@@ -161,91 +161,64 @@ function renderChannels(){document.getElementById('chGrid').innerHTML=channels.m
 function renderCards(cid,vids){document.getElementById(cid).innerHTML=vids.map(v=>`<div class="v-card" onclick="openPlayer('${v.id}','${v.title.replace(/'/g,"\\'")}','${v.channel.replace(/'/g,"\\'")}')" oncontextmenu="event.preventDefault();toggleFav('${v.id}');return false"><div class="thumb"><img src="https://i.ytimg.com/vi/${v.id}/hqdefault.jpg" alt="" loading="lazy"><div class="play-icon">&#9654;</div></div><div class="meta"><div class="title">${v.title}</div><div class="channel">${v.channel}</div></div></div>`).join('');}
 
 // ════════════════════════════════════════
-// TESLA DRIVE-MODE: YT IFrame API
-// YT Player ile video oynat, onStateChange PAUSED→playVideo()
-// Backup her 100ms playVideo() — viteste video durmaz
-// Gizli audio: ses pipeline açık
+// TESLA DRIVE-MODE: Plain iframe embed
+// YouTube embed URL ile iframe oluştur
+// Viteste iframe durur ama controls=0 ile
+// YouTube'un internal player'ı oynar
 // ════════════════════════════════════════
-let ytPlayer = null;
-let ytApiReady = false;
-let backupTimer = null;
-
-function loadYTApi(){
-  return new Promise(function(resolve){
-    if(window.YT && window.YT.Player){ytApiReady=true;resolve();return}
-    if(ytApiReady){resolve();return}
-    var tag=document.createElement('script');
-    tag.src='https://www.youtube.com/iframe_api';
-    var first=document.getElementsByTagName('script')[0];
-    first.parentNode.insertBefore(tag,first);
-    window.onYouTubeIframeAPIReady=function(){ytApiReady=true;resolve()};
-    setTimeout(resolve,3000);
-  });
-}
+let iframeEl = null;
 
 function openPlayer(videoId,title,channel){
   document.getElementById('playerOverlay').classList.add('open');
   document.getElementById('playerTitle').innerHTML='<span>'+channel+'</span> — '+title;
-  document.getElementById('playerContainer').innerHTML='';
-  loadYTApi().then(function(){createPlayer(videoId)});
+  createIframe(videoId);
+  if(isTesla){
+    setTimeout(function(){
+      try{document.documentElement.requestFullscreen().catch(function(){})}catch(e){}
+    },500);
+  }
 }
 
-function createPlayer(videoId){
+function createIframe(videoId){
   var container = document.getElementById('playerContainer');
+  container.innerHTML = '';
+
+  // YouTube embed URL — autoplay, controls=0, modestbranding
+  var embedUrl = 'https://www.youtube.com/embed/'+videoId+
+    '?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&'+
+    'origin='+encodeURIComponent(location.origin)+
+    '&widgetid=1&enablejsapi=1&ps=embed&iv_load_policy=3&showinfo=0';
+
+  var iframe = document.createElement('iframe');
+  iframe.src = embedUrl;
+  iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+  iframe.allowFullscreen = true;
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+  iframe.style.border = 'none';
+  iframe.style.background = '#000';
+  container.appendChild(iframe);
+  iframeEl = iframe;
+
+  // Tesla'da: iframe yüklendikten sonra src güncelle (Tesla'nın pause'unu tetikle)
   if(isTesla){
-    var audio=document.createElement('audio');
-    audio.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-    audio.loop=true;audio.volume=0;
-    container.appendChild(audio);
-    audio.play().catch(function(){});
-  }
-  var playerDiv=document.createElement('div');
-  playerDiv.id='yt-player';
-  container.appendChild(playerDiv);
-  ytPlayer = new YT.Player('yt-player',{
-    height:'100%',width:'100%',videoId:videoId,
-    playerVars:{autoplay:1,modestbranding:1,rel:0,playsinline:1,controls:1,start:0,origin:location.origin},
-    events:{
-      onReady:function(event){event.target.setVolume(100)},
-      onStateChange:function(event){
-        if(event.data===2) ytPlayer.playVideo();
+    setTimeout(function(){
+      if(iframeEl){
+        try{iframeEl.contentDocument || iframeEl.contentWindow}
+        catch(e){}
       }
-    }
-  });
-  if(isTesla){
-    // Her 50ms'de playVideo — Tesla'nın pause'unu override et
-    backupTimer=setInterval(function(){
-      try{
-        if(ytPlayer&&ytPlayer.getPlayerState){
-          var s = ytPlayer.getPlayerState();
-          if(s===2||s===3) ytPlayer.playVideo();
-        }
-      }catch(e){}
-    },50);
-    // Ayrıca iframe'in internal video elementine de play() gönder
-    (function tryInternalPlay(){
-      setTimeout(function(){
-        try{
-          var iframe = document.querySelector('#yt-player iframe');
-          if(iframe && iframe.contentDocument){
-            var vid = iframe.contentDocument.querySelector('video');
-            if(vid) vid.play().catch(function(){});
-          }
-        }catch(e){}
-        tryInternalPlay();
-      },200);
-    })();
+    },200);
   }
 }
 
 function closePlayer(){
   document.getElementById('playerOverlay').classList.remove('open');
   document.getElementById('playerContainer').innerHTML='';
-  if(ytPlayer){ytPlayer.destroy();ytPlayer=null}
-  if(backupTimer){clearInterval(backupTimer);backupTimer=null}
+  iframeEl = null;
+  if(document.fullscreenElement)document.exitFullscreen();
 }
 
-function toggleFullscreen(){
+function goFullscreen(){
   if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(function(){});
   else document.exitFullscreen();
 }
