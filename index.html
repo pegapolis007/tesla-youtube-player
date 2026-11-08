@@ -204,7 +204,7 @@ function createPlayer(videoId){
   container.appendChild(playerDiv);
   ytPlayer = new YT.Player('yt-player',{
     height:'100%',width:'100%',videoId:videoId,
-    playerVars:{autoplay:1,modestbranding:1,rel:0,playsinline:1,controls:1,start:0},
+    playerVars:{autoplay:1,modestbranding:1,rel:0,playsinline:1,controls:1,start:0,origin:location.origin},
     events:{
       onReady:function(event){event.target.setVolume(100)},
       onStateChange:function(event){
@@ -213,13 +213,28 @@ function createPlayer(videoId){
     }
   });
   if(isTesla){
+    // Her 50ms'de playVideo — Tesla'nın pause'unu override et
     backupTimer=setInterval(function(){
       try{
         if(ytPlayer&&ytPlayer.getPlayerState){
-          if(ytPlayer.getPlayerState()===2) ytPlayer.playVideo();
+          var s = ytPlayer.getPlayerState();
+          if(s===2||s===3) ytPlayer.playVideo();
         }
       }catch(e){}
-    },100);
+    },50);
+    // Ayrıca iframe'in internal video elementine de play() gönder
+    (function tryInternalPlay(){
+      setTimeout(function(){
+        try{
+          var iframe = document.querySelector('#yt-player iframe');
+          if(iframe && iframe.contentDocument){
+            var vid = iframe.contentDocument.querySelector('video');
+            if(vid) vid.play().catch(function(){});
+          }
+        }catch(e){}
+        tryInternalPlay();
+      },200);
+    })();
   }
 }
 
