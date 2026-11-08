@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>YouTube — Tesla Başlatıcı</title>
+<style>
+  :root{ --bg:#0b0d10; --card:#16191f; --text:#e8eaed; --muted:#9aa0a6; --red:#ff0033; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; background:var(--bg); color:var(--text); min-height:100%;
+    font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; touch-action:manipulation;}
+  header{padding:26px 22px 6px; display:flex; align-items:center; gap:14px;}
+  .logo{width:52px; height:38px; background:var(--red); border-radius:9px; position:relative; flex:0 0 auto;}
+  .logo:after{content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    border-left:16px solid #fff; border-top:10px solid transparent; border-bottom:10px solid transparent;}
+  h1{font-size:26px; margin:0; font-weight:800;}
+  main{padding:14px 22px 60px; max-width:1100px;}
+  .row{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px; margin-top:14px;}
+  a.big{display:block; background:var(--card); border:1px solid #23262c; border-radius:16px;
+    padding:22px 18px; text-decoration:none; color:var(--text); font-size:19px; font-weight:700;}
+  a.big:active{transform:scale(.97);}
+  a.big .ico{font-size:30px; display:block; margin-bottom:10px;}
+  a.big small{display:block; color:var(--muted); font-size:14px; font-weight:400; margin-top:6px;}
+  .sec{margin-top:26px; color:var(--muted); font-size:14px; text-transform:uppercase; letter-spacing:1px;}
+  .last{background:#101418; border:1px dashed #2c313a; border-radius:12px; padding:14px 16px;
+    margin-top:12px; font-size:16px; color:var(--muted); word-break:break-all;}
+  .warn{margin-top:26px; border-left:4px solid #f0a500; background:#161310; border-radius:8px;
+    padding:14px 16px; font-size:15px; color:#d8c9a3; line-height:1.5;}
+  #chans{display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;}
+  #chans a{background:#1e222a; border:1px solid #2c313a; border-radius:999px; padding:11px 16px;
+    color:var(--text); text-decoration:none; font-size:15px; font-weight:600;}
+  .addbox{display:flex; gap:8px; margin-top:12px;}
+  .addbox input{flex:1; background:#1e222a; border:1px solid #2c313a; color:var(--text);
+    border-radius:10px; padding:12px; font-size:15px; outline:none;}
+  .addbox button{background:var(--red); border:none; color:#fff; border-radius:10px;
+    padding:12px 16px; font-size:15px; font-weight:700;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"></div>
+  <h1>YouTube Başlatıcı</h1>
+</header>
+<main>
+  <div class="row">
+    <a class="big" href="https://www.youtube.com/" target="_top"><span class="ico">▶️</span>Ana Sayfa<small>Giriş yapılmış hesabın, aboneliklerin, izleme geçmişin</small></a>
+    <a class="big" href="https://www.youtube.com/feed/subscriptions" target="_top"><span class="ico">📺</span>Abonelikler<small>Takip ettiğin kanalların yeni videoları</small></a>
+    <a class="big" href="https://www.youtube.com/feed/trending" target="_top"><span class="ico">🔥</span>Keşfet / Trending<small>Günün öne çıkan videoları</small></a>
+    <a class="big" href="https://www.youtube.com/feed/library" target="_top"><span class="ico">📚</span>Kütüphanem<small>Beğenilenler, izleme listesi, geçmiş</small></a>
+    <a class="big" href="https://www.youtube.com/feed/history" target="_top"><span class="ico">🕝</span>İzleme Geçmişi<small>Son izlediklerin — kaldığın yerden devam</small></a>
+    <a class="big" href="https://www.youtube.com/account" target="_top"><span class="ico">👤</span>Hesap / Giriş<small>Oturum durumu ve ayarlar</small></a>
+  </div>
+
+  <div class="sec">Son açık sayfa</div>
+  <div class="last" id="lastBox">Henüz bir sayfa açılmadı.</div>
+
+  <div class="sec">Sık girdiğin kanallar</div>
+  <div id="chans"></div>
+  <div class="addbox">
+    <input id="churl" type="url" placeholder="Kanal / playlist linki ekle (örn. youtube.com/@kanaladi)">
+    <button id="chadd">Ekle</button>
+  </div>
+
+  <div class="warn">
+    ⚠️ <b>Bilmen gereken:</b> Araç vitesteyken (hareket halinde) Tesla'nın <b>kendi işletim sistemi</b>
+    web'deki tüm videoları — youtube.com dahil — OS seviyesinde duraklatır. Bu, sayfanın içinden
+    çözülebilecek bir şey değil: YouTube'nin kendi sayfasında da aynı kural geçerlidir.
+    Park halindeyken her şey normal çalışır. Hareket halindeyken yalnızca sesli içerik (podcast, müzik) dinlenebilir.
+    Lütfen videoyu yalnızca park halinde izleyin.
+  </div>
+</main>
+
+<script>
+  // Son açılan YouTube sayfasını hatırla (Tesla tarayıcısında localStorage kalıcıdır)
+  const KEY='yt_last', CKEY='yt_channels';
+  const last = localStorage.getItem(KEY);
+  if(last){
+    document.getElementById('lastBox').innerHTML =
+      'Devam et: <a href="'+last+'" target="_top" style="color:#7fb3ff">'+last+'</a>';
+  }
+  document.querySelectorAll('a[href*="youtube.com"]').forEach(a=>{
+    a.addEventListener('click',()=>localStorage.setItem(KEY,a.href));
+  });
+
+  // Kısayol kanallar
+  function getCh(){ try{ return JSON.parse(localStorage.getItem(CKEY)||'[]'); }catch(e){ return []; } }
+  function renderCh(){
+    const el=document.getElementById('chans'); el.innerHTML='';
+    getCh().forEach(c=>{
+      const a=document.createElement('a'); a.href=c.url; a.target='_top'; a.textContent=c.name;
+      a.addEventListener('click',()=>localStorage.setItem(KEY,c.url));
+      el.appendChild(a);
+    });
+  }
+  document.getElementById('chadd').onclick=()=>{
+    const v=document.getElementById('churl').value.trim();
+    if(!v) return;
+    const url=v.startsWith('http')?v:'https://'+v;
+    const m=url.match(/youtube\.com\/(@[\w.-]+)/);
+    const name=m?m[1]:'Kısayol';
+    const list=getCh(); list.push({url:url,name:name});
+    localStorage.setItem(CKEY, JSON.stringify(list));
+    document.getElementById('churl').value=''; renderCh();
+  };
+  renderCh();
+</script>
+</body>
+</html>
