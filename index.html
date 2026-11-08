@@ -116,7 +116,6 @@ section h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
 
 <script>
 const isTesla = /Tesla|QtCarBrowser/i.test(navigator.userAgent);
-
 const channels = [
   {id:'UC711211901627172841',name:'Trend TR',subs:'TV & Medya'},
   {id:'UCvB4TIaIIGOxWeTJVRFDgVA',name:'YouTube Trend',subs:'YouTube'},
@@ -127,7 +126,6 @@ const channels = [
   {id:'UCt2KpvpEnxf2r1aqybMv4eA',name:'Doğa',subs:'Doğa'},
   {id:'UCJ0OxJEBV83BfE8qMlN3XqQ',name:'Sürüş',subs:'Otomobil'},
 ];
-
 const videos = [
   {id:'dQw4w9WgXcQ',title:'Rick Astley - Never Gonna Give You Up',channel:'Rick Astley'},
   {id:'9bZkp7q19f0',title:'PSY - GANGNAM STYLE',channel:'officialpsy'},
@@ -140,7 +138,6 @@ const videos = [
   {id:'CevxZvSJLk8',title:'Katy Perry - Roar',channel:'Katy Perry'},
   {id:'RgKAFK5djSk',title:'Wiz Khalifa - See You Again',channel:'Wiz Khalifa'},
 ];
-
 const trendingVideos = [
   {id:'dQw4w9WgXcQ',title:'Rick Astley - Never Gonna Give You Up',channel:'Rick Astley'},
   {id:'kJQP7kiw5Fk',title:'Luis Fonsi - Despacito',channel:'Luis Fonsi'},
@@ -158,141 +155,109 @@ const trendingVideos = [
   {id:'nPt7z0d63kU',title:'Tesla Cybertruck FSD Demo',channel:'Tesla'},
   {id:'dNJdJIwCF_Y',title:'Cybertruck Off-Road',channel:'Tesla'},
 ];
-
 function getFavs(){try{return JSON.parse(localStorage.getItem('tesla_yt_favs')||'[]')}catch(e){return[]}}
 function toggleFav(id){let f=getFavs();const i=f.indexOf(id);if(i>=0)f.splice(i,1);else f.unshift(id);localStorage.setItem('tesla_yt_favs',JSON.stringify(f));if(document.getElementById('sec-favorites').style.display!=='none')renderFavorites()}
-
-function renderChannels(){
-  document.getElementById('chGrid').innerHTML=channels.map(ch=>
-    `<a class="ch-card" href="https://www.youtube.com/channel/${ch.id}" target="_blank">
-      <div class="avatar">${ch.name.charAt(0)}</div>
-      <div><div class="name">${ch.name}</div><div class="sub">${ch.subs}</div></div>
-    </a>`
-  ).join('');
-}
-
-function renderCards(cid,vids){
-  document.getElementById(cid).innerHTML=vids.map(v=>
-    `<div class="v-card" onclick="openPlayer('${v.id}','${v.title.replace(/'/g,"\\'")}','${v.channel.replace(/'/g,"\\'")}')" oncontextmenu="event.preventDefault();toggleFav('${v.id}');return false">
-      <div class="thumb">
-        <img src="https://i.ytimg.com/vi/${v.id}/hqdefault.jpg" alt="" loading="lazy">
-        <div class="play-icon">&#9654;</div>
-      </div>
-      <div class="meta"><div class="title">${v.title}</div><div class="channel">${v.channel}</div></div>
-    </div>`
-  ).join('');
-}
+function renderChannels(){document.getElementById('chGrid').innerHTML=channels.map(ch=>`<a class="ch-card" href="https://www.youtube.com/channel/${ch.id}" target="_blank"><div class="avatar">${ch.name.charAt(0)}</div><div><div class="name">${ch.name}</div><div class="sub">${ch.subs}</div></div></a>`).join('');}
+function renderCards(cid,vids){document.getElementById(cid).innerHTML=vids.map(v=>`<div class="v-card" onclick="openPlayer('${v.id}','${v.title.replace(/'/g,"\\'")}','${v.channel.replace(/'/g,"\\'")}')" oncontextmenu="event.preventDefault();toggleFav('${v.id}');return false"><div class="thumb"><img src="https://i.ytimg.com/vi/${v.id}/hqdefault.jpg" alt="" loading="lazy"><div class="play-icon">&#9654;</div></div><div class="meta"><div class="title">${v.title}</div><div class="channel">${v.channel}</div></div></div>`).join('');}
 
 // ════════════════════════════════════════
-// SEFIROX-TYPE PLAYER: iframe created AFTER click
-// Tesla checks for <video> on page load.
-// Iframe created after user click → bypasses park-only rule.
-// Every video goes through the same flow — no flag.
+// TESLA DRIVE-MODE: YT IFrame API
+// YT Player ile video oynat, onStateChange PAUSED→playVideo()
+// Backup her 100ms playVideo() — viteste video durmaz
+// Gizli audio: ses pipeline açık
 // ════════════════════════════════════════
+let ytPlayer = null;
+let ytApiReady = false;
+let backupTimer = null;
+
+function loadYTApi(){
+  return new Promise(function(resolve){
+    if(window.YT && window.YT.Player){ytApiReady=true;resolve();return}
+    if(ytApiReady){resolve();return}
+    var tag=document.createElement('script');
+    tag.src='https://www.youtube.com/iframe_api';
+    var first=document.getElementsByTagName('script')[0];
+    first.parentNode.insertBefore(tag,first);
+    window.onYouTubeIframeAPIReady=function(){ytApiReady=true;resolve()};
+    setTimeout(resolve,3000);
+  });
+}
+
 function openPlayer(videoId,title,channel){
   document.getElementById('playerOverlay').classList.add('open');
-  document.getElementById('playerTitle').innerHTML=`<span>${channel}</span> — ${title}`;
+  document.getElementById('playerTitle').innerHTML='<span>'+channel+'</span> — '+title;
   document.getElementById('playerContainer').innerHTML='';
-  
-  // Always create iframe after click with delay
-  setTimeout(()=>createIframe(videoId),80);
+  loadYTApi().then(function(){createPlayer(videoId)});
 }
 
-let teslaKeepAliveTimer = null;
-
-function createIframe(videoId){
-  const iframe=document.createElement('iframe');
-  iframe.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
-  iframe.allow='autoplay;encrypted-media;picture-in-picture';
-  iframe.allowFullscreen=true;
-  iframe.style.cssText='width:100%;height:100%;border:none;background:#000';
-  iframe.loading='eager';
-  document.getElementById('playerContainer').appendChild(iframe);
-  
+function createPlayer(videoId){
+  var container = document.getElementById('playerContainer');
   if(isTesla){
-    // 1) Hidden audio element to keep audio pipeline alive
-    const audio=document.createElement('audio');
+    var audio=document.createElement('audio');
     audio.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
     audio.loop=true;audio.volume=0;
-    document.getElementById('playerContainer').appendChild(audio);
-    audio.play().catch(()=>{});
-    
-    // 2) Seek-keepalive: ping iframe'deki video her 200ms'de
-    // Tesla park-only video'yu durdurur ama seek edilirse "playing" sayar
-    let seekCount=0;
-    teslaKeepAliveTimer=setInterval(()=>{
-      seekCount++;
-      // İlk 2s sonra başla (sayfa yüklenmesi için zaman ver)
-      if(seekCount<10)return;
+    container.appendChild(audio);
+    audio.play().catch(function(){});
+  }
+  var playerDiv=document.createElement('div');
+  playerDiv.id='yt-player';
+  container.appendChild(playerDiv);
+  ytPlayer = new YT.Player('yt-player',{
+    height:'100%',width:'100%',videoId:videoId,
+    playerVars:{autoplay:1,modestbranding:1,rel:0,playsinline:1,controls:1,start:0},
+    events:{
+      onReady:function(event){event.target.setVolume(100)},
+      onStateChange:function(event){
+        if(event.data===2) ytPlayer.playVideo();
+      }
+    }
+  });
+  if(isTesla){
+    backupTimer=setInterval(function(){
       try{
-        const f=document.querySelector('#playerContainer iframe');
-        if(!f||!f.contentWindow)return;
-        f.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}','*');
+        if(ytPlayer&&ytPlayer.getPlayerState){
+          if(ytPlayer.getPlayerState()===2) ytPlayer.playVideo();
+        }
       }catch(e){}
-    },200);
+    },100);
   }
 }
 
 function closePlayer(){
   document.getElementById('playerOverlay').classList.remove('open');
   document.getElementById('playerContainer').innerHTML='';
-  playerCreated=false;
-  if(teslaKeepAliveTimer){clearInterval(teslaKeepAliveTimer);teslaKeepAliveTimer=null;}
+  if(ytPlayer){ytPlayer.destroy();ytPlayer=null}
+  if(backupTimer){clearInterval(backupTimer);backupTimer=null}
 }
 
 function toggleFullscreen(){
-  if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});
+  if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(function(){});
   else document.exitFullscreen();
 }
 
 function showSection(name){
-  document.querySelectorAll('main>section').forEach(s=>s.style.display='none');
-  document.querySelectorAll('hdr nav a').forEach(a=>a.classList.remove('active'));
-  
-  if(name==='home'){
-    document.getElementById('sec-home').style.display='block';
-    renderChannels();
-    document.getElementById('nav-home').classList.add('active');
-  }else if(name==='trending'){
-    document.getElementById('sec-trending').style.display='block';
-    renderCards('trendGrid',trendingVideos);
-    document.getElementById('nav-trending').classList.add('active');
-  }else if(name==='favorites'){
-    document.getElementById('sec-favorites').style.display='block';
-    renderFavorites();
-    document.getElementById('nav-favorites').classList.add('active');
-  }
+  document.querySelectorAll('main>section').forEach(function(s){s.style.display='none'});
+  document.querySelectorAll('hdr nav a').forEach(function(a){a.classList.remove('active')});
+  if(name==='home'){document.getElementById('sec-home').style.display='block';renderChannels();document.getElementById('nav-home').classList.add('active')}
+  else if(name==='trending'){document.getElementById('sec-trending').style.display='block';renderCards('trendGrid',trendingVideos);document.getElementById('nav-trending').classList.add('active')}
+  else if(name==='favorites'){document.getElementById('sec-favorites').style.display='block';renderFavorites();document.getElementById('nav-favorites').classList.add('active')}
 }
 
 function renderFavorites(){
-  const favs=getFavs();
-  const grid=document.getElementById('favGrid');
+  var favs=getFavs();var grid=document.getElementById('favGrid');
   if(favs.length===0){grid.innerHTML='<p style="color:var(--muted);padding:20px">Henüz favori yok. Bir videoya uzun bas (sağ tık).</p>';return}
-  const favVids=trendingVideos.filter(v=>favs.includes(v.id));
+  var favVids=trendingVideos.filter(function(v){return favs.includes(v.id)});
   if(favVids.length===0){grid.innerHTML='<p style="color:var(--muted);padding:20px">Henüz favori yok. Bir videoya uzun bas (sağ tık).</p>';return}
   renderCards('favGrid',favVids);
 }
 
 function handleSearch(q){
-  const sec=document.getElementById('sec-search');
+  var sec=document.getElementById('sec-search');
   if(q.length<2){sec.style.display='none';return}
   sec.style.display='block';
-  const q2=q.toLowerCase();
-  const r=[...videos,...trendingVideos].filter(v=>v.title.toLowerCase().includes(q2)||v.channel.toLowerCase().includes(q2));
+  var q2=q.toLowerCase();
+  var r=[].concat(videos,trendingVideos).filter(function(v){return v.title.toLowerCase().includes(q2)||v.channel.toLowerCase().includes(q2)});
   renderCards('searchGrid',r);
-}
-
-if(isTesla){
-  const trigger=()=>{
-    document.removeEventListener('click',trigger);
-    document.removeEventListener('touchend',trigger);
-    const p=document.createElement('iframe');
-    p.style.cssText='position:absolute;left:-9999px;width:1px;height:1px';
-    p.src='about:blank';
-    document.body.appendChild(p);
-  };
-  document.addEventListener('click',trigger);
-  document.addEventListener('touchend',trigger);
 }
 
 renderChannels();
